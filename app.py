@@ -7,7 +7,21 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, \
 from engineio.payload import Payload
 from flask_login import LoginManager, UserMixin, \
 								login_required, login_user, logout_user, current_user 
+from mjpeg.client import MJPEGClient
+from mjpeg.server import MJPEGResponse
+import base64
+url='http://192.168.1.69/webcam/?action=stream'
 
+# Create a new client thread
+client = MJPEGClient(url)
+
+# Allocate memory buffers for frames
+bufs = client.request_buffers(65536, 50)
+for b in bufs:
+    client.enqueue_buffer(b)
+    
+# Start the client in a background thread
+client.start()
 #https://flask-socketio.readthedocs.io/en/latest/
 # Set this variable to "threading", "eventlet" or "gevent" to test the
 # different async modes, or leave it set to None for the application to choose
@@ -21,7 +35,10 @@ Payload.max_decode_packets = 500
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 #pip install eventlet
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*", logger=True, engineio_logger=True)
+# socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*", logger=True, engineio_logger=True)
+socketio = SocketIO(app, async_mode='eventlet')
+import eventlet
+eventlet.monkey_patch()
 # socketio = SocketIO(app, async_mode='gevent')
 thread = None
 thread_lock = Lock()
@@ -77,8 +94,21 @@ def login():
 			<p><input type=submit value=Login>
 		</form>
 		''')
-
-
+		
+def relay():
+	while True:
+		buf = client.dequeue_buffer()
+		yield memoryview(buf.data)[:buf.used]
+		client.enqueue_buffer(buf)
+		
+@app.route('/video_feed')
+@login_required
+def stream():
+	# if not current_user.is_authenticated:
+		# return abort(401)
+	print('user auth')
+	return MJPEGResponse(relay())
+	
 # somewhere to logout
 @app.route("/logout")
 @login_required
@@ -97,7 +127,17 @@ def page_not_found(e):
 @login_manager.user_loader
 def load_user(userid):
 	return User(userid)
+		
+def mjpeg_generatorCustom(frames):
+	for f in frames:
+		frame = base64.encodebytes(f).decode('utf-8')
+		frame = f"data:image/jpeg;base64,{frame}"
+		emit('stream_response', {'data': frame})
+		socketio.sleep(0)
 
+def MJPEGResponseCusrom(it):
+	mjpeg_generatorCustom(it)
+	
 @socketio.on('connect')
 def connect_handler():
 	if current_user.is_authenticated:
@@ -114,12 +154,16 @@ def authenticated_only(f):
 			disconnect()
 		else:
 			return f(*args, **kwargs)
-	return wrapped
+	return wrapped	
+	
+@socketio.on('stream_request')
+def stream_request():
+	MJPEGResponseCusrom(relay())
 	
 @socketio.event
 @authenticated_only
 def my_event(message):
-	print('message ', message)
+	# print('message ', message)
 	session['receive_count'] = session.get('receive_count', 0) + 1
 	emit('my_response',
 		 {'data': "pouet pouet " + message['data'], 'count': session['receive_count']})
