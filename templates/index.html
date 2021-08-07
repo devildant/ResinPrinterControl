@@ -18,7 +18,6 @@
             // server is established.
             socket.on('connect', function() {
                 socket.emit('my_event', {data: 'I\'m connected!'});
-				$("#cam").attr("src", "/video_feed");
             });
 
             // Event handler for server sent data.
@@ -30,13 +29,7 @@
                 if (cb)
                     cb();
             });
-			
-			socket.on('stream_response', function (data) { 
-			//console.log("pouet");
-			//console.log(data);
-			$("#image").attr("src",data.data) ;
-           });
-			socket.emit('stream_request');
+
             // Interval function that tests message latency by sending a "ping"
             // message. The server then responds with a "pong" message and the
             // round trip time is measured.
@@ -96,8 +89,8 @@
     </script>
 </head>
 <body>
-	<h1>Video Streaming Demonstration</h1>
-    <img id="image"  src="">
+    <h1>Video Streamer</h1>
+	<img src="/webcam/">
     <h1>Flask-SocketIO Test</h1>
     <p>
       Async mode is: <b>{{ async_mode }}</b><br>
@@ -133,7 +126,6 @@
     <form id="disconnect" method="POST" action="#">
         <input type="submit" value="Disconnect">
     </form>
-	
     <h2>Receive:</h2>
     <div id="log"></div>
 </body>
