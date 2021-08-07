@@ -70,13 +70,8 @@ def login():
 		else:
 			return abort(401)
 	else:
-		return Response('''
-		<form action="" method="post">
-			<p><input type=text name=username>
-			<p><input type=password name=password>
-			<p><input type=submit value=Login>
-		</form>
-		''')
+		return render_template('login.html')
+		
 
 
 # somewhere to logout
@@ -84,7 +79,7 @@ def login():
 @login_required
 def logout():
 	logout_user()
-	return Response('<p>Logged out</p>')
+	return abort(401)
 
 
 # handle login failed
